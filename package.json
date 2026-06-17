@@ -10,10 +10,10 @@
     "backend"
   ],
   "scripts": {
-    "build": "npx prisma generate --schema prisma/schema.prisma && cd frontend && npm run build -- --outDir ../dist",
+    "build": "node scripts/prepare-prisma.js && npx prisma generate --schema prisma/schema.prisma && cd frontend && npm run build -- --outDir ../dist",
     "start": "node api/index.js",
     "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
-    "postinstall": "npx prisma generate --schema prisma/schema.prisma"
+    "postinstall": "node scripts/prepare-prisma.js && npx prisma generate --schema prisma/schema.prisma"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

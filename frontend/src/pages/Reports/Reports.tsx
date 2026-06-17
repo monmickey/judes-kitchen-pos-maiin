@@ -383,12 +383,15 @@ const Reports = () => {
 
               case 'payment-summary': {
                 headers = ['Payment Mode', 'Total Amount', 'Share (%)'];
-                const total = Object.values(reportData).reduce((s: any, a: any) => s + a, 0) as number;
-                data = Object.entries(reportData).map(([mode, amount]: any) => {
+                const cleanData = (reportData && (reportData.details !== undefined || reportData.summary !== undefined))
+                  ? {}
+                  : (reportData || {});
+                const total = Object.values(cleanData).reduce((s: any, a: any) => s + a, 0) as number;
+                data = Object.entries(cleanData).map(([mode, amount]: any) => {
                   const share = total > 0 ? (amount / total) * 100 : 0;
                   return [
                     mode.toUpperCase(),
-                    `Rs.${amount.toFixed(2)}`,
+                    `Rs.${Number(amount || 0).toFixed(2)}`,
                     `${share.toFixed(1)}%`
                   ];
                 });
@@ -943,12 +946,12 @@ const Reports = () => {
       }
 
       case 'payment-summary': {
-        if (!reportData || typeof reportData !== 'object') {
-          return <div className="p-20 text-center animate-pulse text-brand-400">Aggregating Payment Data...</div>;
-        }
-        
-        const cashTotal = reportData['CASH'] || 0;
-        const upiTotal = reportData['UPI'] || 0;
+        const cleanData = (reportData && (reportData.details !== undefined || reportData.summary !== undefined))
+          ? {}
+          : (reportData || {});
+
+        const cashTotal = Number(cleanData['CASH'] || 0);
+        const upiTotal = Number(cleanData['UPI'] || 0);
         
         return (
           <div className="space-y-8">
@@ -995,9 +998,9 @@ const Reports = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-sans">
-                  {Object.entries(reportData).map(([mode, amount]: any) => {
-                    const total = Object.values(reportData).reduce((s: any, a: any) => s + a, 0);
-                    const share = (amount / total) * 100;
+                  {Object.entries(cleanData).map(([mode, amount]: any) => {
+                    const total = Object.values(cleanData).reduce((s: any, a: any) => s + a, 0) as number;
+                    const share = total > 0 ? (Number(amount) / total) * 100 : 0;
                     return (
                       <tr key={mode} className="hover:bg-brand-50/30 transition-colors group">
                         <td className="p-6">
@@ -1006,7 +1009,7 @@ const Reports = () => {
                               <span className="font-bold text-slate-800 uppercase tracking-wider text-xs">{mode}</span>
                            </div>
                         </td>
-                        <td className="p-6 text-right font-black text-slate-900">₹{amount.toFixed(2)}</td>
+                        <td className="p-6 text-right font-black text-slate-900">₹{Number(amount || 0).toFixed(2)}</td>
                         <td className="p-6 text-right">
                            <div className="flex items-center justify-end gap-3 text-xs font-black">
                               <span className="text-slate-400">{share.toFixed(1)}%</span>
@@ -1026,7 +1029,7 @@ const Reports = () => {
                    <tr>
                       <td className="p-6 uppercase tracking-widest text-xs">Total Combined Revenue</td>
                       <td className="p-6 text-right text-xl">
-                        ₹{Object.values(reportData).reduce((s: any, a: any) => s + a, 0).toFixed(2)}
+                        ₹{Object.values(cleanData).reduce((s: any, a: any) => s + a, 0).toFixed(2)}
                       </td>
                       <td className="p-6 text-right text-xs text-slate-400">100%</td>
                    </tr>

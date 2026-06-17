@@ -5,9 +5,9 @@
   "main": "index.js",
   "scripts": {
     "start": "node src/index.js",
-    "prisma:generate": "npx prisma generate --schema ../prisma/schema.prisma",
+    "prisma:generate": "node ../scripts/prepare-prisma.js && npx prisma generate --schema ../prisma/schema.prisma",
     "prisma:push": "npx prisma db push --schema ../prisma/schema.prisma",
-    "postinstall": "npm run prisma:generate",
+    "postinstall": "node ../scripts/prepare-prisma.js && npm run prisma:generate",
     "dev": "nodemon src/index.js"
   },
   "keywords": [],

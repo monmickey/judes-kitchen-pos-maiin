@@ -361,11 +361,20 @@ router.post('/split', auth(['ADMIN', 'MANAGER', 'CASHIER']), async (req, res) =>
       }
 
       // Generate invoice number for the split order
-      const rawMax = await tx.$queryRaw`
-        SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
-        FROM "Order" 
-        WHERE "invoiceNo" NOT GLOB '*[^0-9]*' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
-      `;
+      const dbUrl = process.env.DATABASE_URL || '';
+      const isPostgres = dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://');
+      
+      const rawMax = isPostgres
+        ? await tx.$queryRaw`
+            SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
+            FROM "Order" 
+            WHERE "invoiceNo" ~ '^[0-9]+$' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
+          `
+        : await tx.$queryRaw`
+            SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
+            FROM "Order" 
+            WHERE "invoiceNo" NOT GLOB '*[^0-9]*' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
+          `;
       const maxNum = Number(rawMax[0]?.maxNum) || 99;
       const invoiceNo = (maxNum + 1).toString();
 

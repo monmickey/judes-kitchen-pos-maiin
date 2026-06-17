@@ -156,15 +156,23 @@ router.post('/', auth(['ADMIN', 'MANAGER', 'CASHIER', 'WAITER']), async (req, re
 
       // 2. Determine Invoice Number (Trust Client first, Fallback to Server Seq)
       let invoiceNo = clientInvoiceNo;
+      const dbUrl = process.env.DATABASE_URL || '';
+      const isPostgres = dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://');
       
       const existingNum = await tx.order.findUnique({ where: { invoiceNo: String(clientInvoiceNo) } });
       if (!clientInvoiceNo || existingNum) {
           // If client provided no number or it's already taken, calculate next safe one
-          const rawMax = await tx.$queryRaw`
-            SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
-            FROM "Order" 
-            WHERE "invoiceNo" NOT GLOB '*[^0-9]*' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
-          `;
+          const rawMax = isPostgres
+            ? await tx.$queryRaw`
+                SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
+                FROM "Order" 
+                WHERE "invoiceNo" ~ '^[0-9]+$' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
+              `
+            : await tx.$queryRaw`
+                SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
+                FROM "Order" 
+                WHERE "invoiceNo" NOT GLOB '*[^0-9]*' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
+              `;
           const maxNum = Number(rawMax[0]?.maxNum) || 99;
           invoiceNo = (maxNum + 1).toString();
       }
@@ -963,11 +971,20 @@ router.post('/:id/approve', auth(['ADMIN', 'MANAGER', 'CASHIER']), async (req, r
 
     // Generate a fresh sequential invoice number
     let finalInvoiceNo;
-    const rawMax = await prisma.$queryRaw`
-      SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
-      FROM "Order" 
-      WHERE "invoiceNo" NOT GLOB '*[^0-9]*' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
-    `;
+    const dbUrl = process.env.DATABASE_URL || '';
+    const isPostgres = dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://');
+    
+    const rawMax = isPostgres
+      ? await prisma.$queryRaw`
+          SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
+          FROM "Order" 
+          WHERE "invoiceNo" ~ '^[0-9]+$' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
+        `
+      : await prisma.$queryRaw`
+          SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
+          FROM "Order" 
+          WHERE "invoiceNo" NOT GLOB '*[^0-9]*' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
+        `;
     const maxNum = Number(rawMax[0]?.maxNum) || 99;
     finalInvoiceNo = String(maxNum + 1);
 
