@@ -17,10 +17,10 @@ async function bootstrap() {
         }
 
         console.log('2. Pushing Schema to Supabase...');
-        execSync(`npx prisma db push --schema="${schemaPath}" --accept-data-loss`, { stdio: 'inherit' });
+        execSync(`npx --no-install prisma db push --schema="${schemaPath}" --accept-data-loss`, { stdio: 'inherit' });
 
         console.log('3. Generating Prisma Client...');
-        execSync(`npx prisma generate --schema="${schemaPath}"`, { stdio: 'inherit' });
+        execSync(`npx --no-install prisma generate --schema="${schemaPath}"`, { stdio: 'inherit' });
 
         console.log('4. Creating Default Administrator...');
         const prisma = new PrismaClient();

@@ -1,6 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 
+// Load environment variables from .env file
+require('dotenv').config();
+
 function prepareSchema(schemaPath) {
   if (!fs.existsSync(schemaPath)) {
     console.log(`Schema file not found at ${schemaPath}, skipping.`);
