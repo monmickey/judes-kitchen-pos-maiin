@@ -129,6 +129,7 @@ const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ order, onClose }) => {
               <div class="total-row"><span>Cust : ${order.customer?.name || order.customerName || 'Walk-in'}</span></div>
               <div class="total-row"><span>Type : ${order.orderType || 'Walk-in'}</span></div>
               <div class="total-row"><span>Invoice : ${order.invoiceNo}</span></div>
+              <div class="total-row"><span>Bill No : ${order.billNo || 'N/A'}</span></div>
               ${order.tableName ? `<div class="total-row"><span>Table : ${order.tableName}</span></div>` : ''}
               ${order.waiterName ? `<div class="total-row"><span>Waiter : ${order.waiterName}</span></div>` : ''}
             </div>
@@ -312,6 +313,10 @@ const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ order, onClose }) => {
               <div className="flex justify-between">
                 <span>Invoice :</span>
                 <span className="font-bold">{order.invoiceNo}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Bill No :</span>
+                <span className="font-bold">{order.billNo || 'N/A'}</span>
               </div>
             </div>
 

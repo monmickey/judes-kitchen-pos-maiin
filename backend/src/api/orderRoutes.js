@@ -5,6 +5,35 @@ const auth = require('../middleware/auth');
 const whatsappUtil = require('../utils/whatsappUtil');
 const pdfUtil = require('../utils/pdfUtil');
 
+// Helper to get next daily sequential bill number (resets at 24:00 IST)
+async function getNextBillNo(tx) {
+  const offset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+  const istNow = new Date(new Date().getTime() + offset);
+  const istStartOfDay = new Date(
+    istNow.getUTCFullYear(),
+    istNow.getUTCMonth(),
+    istNow.getUTCDate(),
+    0, 0, 0, 0
+  );
+  const utcStartOfDay = new Date(istStartOfDay.getTime() - offset);
+
+  const maxBillOrder = await tx.order.findFirst({
+    where: {
+      createdAt: {
+        gte: utcStartOfDay
+      },
+      billNo: {
+        not: null
+      }
+    },
+    orderBy: {
+      billNo: 'desc'
+    }
+  });
+
+  return (maxBillOrder?.billNo || 0) + 1;
+}
+
 // Local Error Capture for Black Box
 const logError = (context, err) => {
   console.error(`[Order API Debug] ${context}:`, err);
@@ -177,6 +206,9 @@ router.post('/', auth(['ADMIN', 'MANAGER', 'CASHIER', 'WAITER']), async (req, re
           invoiceNo = (maxNum + 1).toString();
       }
 
+      // Calculate daily sequential Bill No (restarts at 24:00 IST)
+      const billNo = await getNextBillNo(tx);
+
       // 3. Validation
       for (const item of orderItems) {
         const pid = item.productId || item.id;
@@ -192,6 +224,7 @@ router.post('/', auth(['ADMIN', 'MANAGER', 'CASHIER', 'WAITER']), async (req, re
       const orderBaseData = {
         id: id || undefined, // Respect the Client's Optimistic ID
         invoiceNo,
+        billNo,
         customerId,
         subtotal,
         discount,
@@ -990,11 +1023,13 @@ router.post('/:id/approve', auth(['ADMIN', 'MANAGER', 'CASHIER']), async (req, r
 
     // Update order status to PENDING (running order) and give it the safe sequential invoiceNo
     const order = await prisma.$transaction(async (tx) => {
+      const billNo = await getNextBillNo(tx);
       const updatedOrder = await tx.order.update({
         where: { id },
         data: {
           status: 'PENDING',
-          invoiceNo: finalInvoiceNo
+          invoiceNo: finalInvoiceNo,
+          billNo
         },
         include: {
           orderItems: { include: { product: true } }

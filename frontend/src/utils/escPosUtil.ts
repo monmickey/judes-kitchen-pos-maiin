@@ -97,6 +97,7 @@ export class EscPosBuilder {
     // Order Info
     builder.alignLeft()
            .line(`Invoice : ${order.invoiceNo || 'N/A'}`)
+           .line(`Bill No : ${order.billNo || 'N/A'}`)
            .line(`Date    : ${new Date(order.createdAt || Date.now()).toLocaleString()}`)
            .line(`Cust    : ${order.customer?.name || 'Walk-in'}`)
            .line(`Mode    : ${order.orderType || 'Dine-in'}`);

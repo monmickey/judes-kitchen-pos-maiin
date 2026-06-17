@@ -39,11 +39,12 @@ const pdfUtil = {
     // --- Bill Details ---
     const topOfDetails = doc.y;
     doc.font('Helvetica-Bold').fontSize(11).text(`TAX INVOICE: ${order.invoiceNo}`, 40, topOfDetails);
-    doc.font('Helvetica').fontSize(9).text(`Date: ${new Date(order.createdAt).toLocaleDateString()} ${new Date(order.createdAt).toLocaleTimeString()}`, 40, topOfDetails + 15);
-    doc.font('Helvetica-Bold').fontSize(10).text(`Type: ${order.orderType || 'Walk-in'}`, 40, topOfDetails + 30);
-    doc.font('Helvetica').fontSize(10).text(`Customer: ${order.customer?.name || order.customerName || 'Walk-in'}`, 40, topOfDetails + 30, { align: 'right' });
+    doc.font('Helvetica-Bold').fontSize(11).text(`BILL NO: ${order.billNo || 'N/A'}`, 40, topOfDetails + 15);
+    doc.font('Helvetica').fontSize(9).text(`Date: ${new Date(order.createdAt).toLocaleDateString()} ${new Date(order.createdAt).toLocaleTimeString()}`, 40, topOfDetails + 30);
+    doc.font('Helvetica-Bold').fontSize(10).text(`Type: ${order.orderType || 'Walk-in'}`, 40, topOfDetails + 45);
+    doc.font('Helvetica').fontSize(10).text(`Customer: ${order.customer?.name || order.customerName || 'Walk-in'}`, 40, topOfDetails + 45, { align: 'right' });
 
-    doc.moveDown(3);
+    doc.moveDown(4);
 
     // --- Table Header ---
     const tableTop = doc.y;
