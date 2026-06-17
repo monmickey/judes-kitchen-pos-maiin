@@ -10,11 +10,15 @@ function prepareSchema(schemaPath) {
   console.log(`Preparing schema: ${schemaPath}`);
   let content = fs.readFileSync(schemaPath, 'utf8');
 
-  // Check if we are running in Vercel or production deployment
-  const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true' || process.env.NODE_ENV === 'production';
+  const dbUrl = process.env.DATABASE_URL || '';
+  const isPostgres = dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://') || process.env.VERCEL === '1' || process.env.VERCEL === 'true';
 
-  if (isVercel) {
-    console.log('Detected Vercel/Production environment. Configuring schema for PostgreSQL...');
+  console.log(`- DATABASE_URL present: ${!!dbUrl}`);
+  console.log(`- VERCEL env: ${process.env.VERCEL}`);
+  console.log(`- isPostgres: ${isPostgres}`);
+
+  if (isPostgres) {
+    console.log('Configuring schema for PostgreSQL...');
     // Replace SQLite datasource with PostgreSQL
     content = content.replace(
       /datasource\s+db\s*{[^}]*}/g,
