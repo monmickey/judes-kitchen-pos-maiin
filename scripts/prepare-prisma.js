@@ -1,8 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 
-// Load environment variables from .env file
-require('dotenv').config();
+// Load environment variables from .env file (if available)
+try {
+  require('dotenv').config();
+} catch (e) {
+  // dotenv is not installed or not needed (e.g. on Vercel)
+}
 
 function prepareSchema(schemaPath) {
   if (!fs.existsSync(schemaPath)) {
