@@ -51,6 +51,12 @@ async function migrate() {
     console.log("Cleaning up default placeholder data in Supabase...");
     
     // Delete tables in correct foreign key order
+    await sql`DELETE FROM "UserActivity"`;
+    await sql`DELETE FROM "InventoryLog"`;
+    await sql`DELETE FROM "WastageEntry"`;
+    await sql`DELETE FROM "RawMaterialPurchaseItem"`;
+    await sql`DELETE FROM "RawMaterialPurchase"`;
+    await sql`DELETE FROM "RawMaterial"`;
     await sql`DELETE FROM "OrderItem"`;
     await sql`DELETE FROM "KOTItem"`;
     await sql`DELETE FROM "KOT"`;
@@ -166,6 +172,21 @@ async function migrate() {
       `;
     }
     console.log("Restaurant Settings migrated.");
+
+    // 8. Migrate Raw Materials
+    console.log("\n--- 📦 Migrating Raw Materials ---");
+    const rawMaterials = await all("SELECT * FROM RawMaterial");
+    console.log(`Found ${rawMaterials.length} raw materials in SQLite.`);
+    for (const r of rawMaterials) {
+      await sql`
+        INSERT INTO "RawMaterial" (
+          id, name, unit, "stockQuantity", "lowStockThreshold", "createdAt", "updatedAt"
+        ) VALUES (
+          ${r.id}, ${r.name}, ${r.unit}, ${r.stockQuantity}, ${r.lowStockThreshold}, ${new Date(r.createdAt)}, ${new Date(r.updatedAt)}
+        ) ON CONFLICT (id) DO NOTHING
+      `;
+    }
+    console.log("Raw Materials migrated.");
 
     console.log("\n🎉 ALL MASTER DATA MIGRATED SUCCESSFULLY!");
   } catch (error) {

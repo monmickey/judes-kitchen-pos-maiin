@@ -175,6 +175,9 @@ router.post('/', auth(['ADMIN', 'MANAGER', 'CASHIER', 'WAITER']), async (req, re
       }
     }
 
+    // Calculate daily sequential Bill No (restarts at 24:00 IST) outside transaction to prevent timeouts
+    const billNo = await getNextBillNo(prisma);
+
     const order = await prisma.$transaction(async (tx) => {
       // 1. PRE-FETCH ALL PRODUCTS IN ONE GO (HUGE Performance Gain)
       const productIds = [...new Set(orderItems.map(item => item.productId || item.id))];
@@ -205,9 +208,6 @@ router.post('/', auth(['ADMIN', 'MANAGER', 'CASHIER', 'WAITER']), async (req, re
           const maxNum = Number(rawMax[0]?.maxNum) || 99;
           invoiceNo = (maxNum + 1).toString();
       }
-
-      // Calculate daily sequential Bill No (restarts at 24:00 IST)
-      const billNo = await getNextBillNo(tx);
 
       // 3. Validation
       for (const item of orderItems) {
@@ -318,12 +318,16 @@ router.post('/', auth(['ADMIN', 'MANAGER', 'CASHIER', 'WAITER']), async (req, re
             const ingredientQty = Number(ingredient.quantity) || 0;
             const totalDeduct = ingredientQty * qty;
             if (rawId && totalDeduct > 0) {
-              await tx.rawMaterial.update({
-                where: { id: rawId },
-                data: {
-                  stockQuantity: { decrement: totalDeduct }
-                }
-              });
+              try {
+                await tx.rawMaterial.update({
+                  where: { id: rawId },
+                  data: {
+                    stockQuantity: { decrement: totalDeduct }
+                  }
+                });
+              } catch (err) {
+                console.error(`[Order API] Failed to deduct raw material ${rawId} for product ${pid}:`, err.message);
+              }
             }
           }
         }
@@ -1021,9 +1025,11 @@ router.post('/:id/approve', auth(['ADMIN', 'MANAGER', 'CASHIER']), async (req, r
     const maxNum = Number(rawMax[0]?.maxNum) || 99;
     finalInvoiceNo = String(maxNum + 1);
 
+    // Calculate daily sequential Bill No (restarts at 24:00 IST) outside transaction to prevent timeouts
+    const billNo = await getNextBillNo(prisma);
+
     // Update order status to PENDING (running order) and give it the safe sequential invoiceNo
     const order = await prisma.$transaction(async (tx) => {
-      const billNo = await getNextBillNo(tx);
       const updatedOrder = await tx.order.update({
         where: { id },
         data: {
