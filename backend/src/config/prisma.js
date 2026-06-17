@@ -3,9 +3,15 @@ const { PrismaClient } = require('@prisma/client');
 let prisma;
 
 function getPrismaInstance() {
-  const dbUrl = process.env.DATABASE_URL || '';
-  let connectionUrl = dbUrl;
+  let dbUrl = process.env.DATABASE_URL || '';
   
+  // On Vercel, force direct connection port 5432 to use the pooler port 6543 for Supabase
+  if (process.env.VERCEL && dbUrl.includes('supabase.co:5432')) {
+    console.log('[Prisma Client] Auto-redirecting Supabase URL to port 6543 connection pooler on Vercel');
+    dbUrl = dbUrl.replace('supabase.co:5432', 'supabase.co:6543');
+  }
+  
+  let connectionUrl = dbUrl;
   const clientConfig = {};
   
   if (connectionUrl) {
