@@ -1,9 +1,6 @@
 {
   "version": 2,
   "regions": ["hnd1"],
-  "env": {
-    "TZ": "UTC"
-  },
   "rewrites": [
     {
       "source": "/api/(.*)",
