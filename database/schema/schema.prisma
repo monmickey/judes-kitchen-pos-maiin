@@ -74,6 +74,7 @@ model Product {
   purchaseReturnItems PurchaseReturnItem[]
   inventoryLogs       InventoryLog[]
   purchaseOrderItems  PurchaseOrderItem[] // New PO relation
+  productionBatches  ProductionBatch[]
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 }
@@ -93,6 +94,7 @@ model Supplier {
   payments      PurchasePayment[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+  vendorProducts VendorProduct[]
 }
 
 model PurchaseOrder {
@@ -320,4 +322,88 @@ model PurchaseItem {
   discountPercent Float @default(0)
   taxAmount  Float
   total      Float
+}
+
+model VendorProduct {
+  id           String      @id @default(uuid())
+  vendorId     String      @map("vendor_id")
+  productId    String      @map("product_id")
+  defaultPrice Float?      @map("default_price")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  vendor       Supplier    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  rawMaterial  RawMaterial @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("vendor_products")
+}
+
+model RawMaterial {
+  id                String   @id @default(uuid())
+  name              String   @unique
+  unit              String   // kg, gram, litre, ml, pcs
+  stockQuantity     Float    @default(0)
+  lowStockThreshold Float    @default(0)
+  is_active         Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  purchases         RawMaterialPurchaseItem[]
+  wastage           WastageEntry[]
+  vendorProducts    VendorProduct[]
+  productionBatchItems ProductionBatchItem[]
+}
+
+model RawMaterialPurchase {
+  id           String   @id @default(uuid())
+  invoiceNo    String   @unique
+  supplierName String?
+  totalAmount  Float
+  date         DateTime @default(now())
+  items        RawMaterialPurchaseItem[]
+  createdAt    DateTime @default(now())
+}
+
+model RawMaterialPurchaseItem {
+  id              String             @id @default(uuid())
+  purchaseId      String
+  purchase        RawMaterialPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  rawMaterialId   String
+  rawMaterialName String
+  quantity        Float
+  price           Float
+  total           Float
+  rawMaterial     RawMaterial        @relation(fields: [rawMaterialId], references: [id])
+}
+
+model WastageEntry {
+  id              String      @id @default(uuid())
+  rawMaterialId   String
+  rawMaterialName String
+  quantity        Float
+  reason          String?
+  date            DateTime    @default(now())
+  createdAt       DateTime    @default(now())
+  rawMaterial     RawMaterial @relation(fields: [rawMaterialId], references: [id])
+}
+
+model ProductionBatch {
+  id                String                 @id @default(uuid())
+  batchNo           String                 @unique @map("batch_no")
+  finishedProductId String                 @map("finished_product_id")
+  finishedProduct   Product                @relation(fields: [finishedProductId], references: [id])
+  quantityProduced  Float                  @map("quantity_produced")
+  producedAt        DateTime               @default(now()) @map("produced_at")
+  createdBy         String?                @map("created_by")
+  batchItems        ProductionBatchItem[]
+
+  @@map("production_batches")
+}
+
+model ProductionBatchItem {
+  id             String          @id @default(uuid())
+  batchId        String          @map("batch_id")
+  rawMaterialId  String          @map("raw_material_id")
+  rawMaterial    RawMaterial     @relation(fields: [rawMaterialId], references: [id])
+  quantityConsumed Float         @map("quantity_consumed")
+  batch          ProductionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@map("production_batch_items")
 }

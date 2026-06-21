@@ -297,4 +297,55 @@ router.get('/last-purchase-price/:productId', auth(['ADMIN', 'MANAGER', 'CASHIER
   }
 });
 
+// Clear stock of all finished products (Shop Close)
+router.post('/shop-close', auth(['ADMIN', 'MANAGER']), async (req, res) => {
+  try {
+    // 1. Find all active products with non-zero stock
+    const productsWithStock = await prisma.product.findMany({
+      where: {
+        is_active: true,
+        NOT: {
+          stockQuantity: 0
+        }
+      }
+    });
+
+    // 2. Clear stock and log the transaction
+    await prisma.$transaction(async (tx) => {
+      // Create inventory log entries for tracking
+      for (const p of productsWithStock) {
+        await tx.inventoryLog.create({
+          data: {
+            productId: p.id,
+            type: 'OUT',
+            quantity: p.stockQuantity,
+            reason: 'Shop Close'
+          }
+        });
+      }
+
+      // Reset stock of all active products
+      await tx.product.updateMany({
+        where: {
+          is_active: true
+        },
+        data: {
+          stockQuantity: 0
+        }
+      });
+    });
+
+    // 3. Notify connected terminals via Socket.io
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('INVENTORY_UPDATE', { shopClosed: true });
+    }
+
+    res.json({ message: 'Shop closed successfully. Finished product stocks have been cleared.' });
+  } catch (error) {
+    console.error('Error during Shop Close:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

@@ -36,9 +36,44 @@ router.post('/unlock/:productId', (req, res) => {
 router.get('/raw-materials', auth(['ADMIN', 'MANAGER']), async (req, res) => {
   try {
     const items = await prisma.rawMaterial.findMany({
+      where: {
+        is_active: true
+      },
+      include: {
+        purchases: {
+          select: {
+            price: true,
+            purchase: {
+              select: { date: true }
+            }
+          }
+        },
+        vendorProducts: {
+          select: { defaultPrice: true }
+        }
+      },
       orderBy: { name: 'asc' }
     });
-    res.json(items);
+
+    const formatted = items.map(item => {
+      // Sort purchases by date desc in JS
+      const sortedPurchases = [...item.purchases].sort((a, b) => {
+        return new Date(b.purchase.date).getTime() - new Date(a.purchase.date).getTime();
+      });
+      const lastPrice = sortedPurchases[0]?.price || item.vendorProducts[0]?.defaultPrice || 0;
+      return {
+        id: item.id,
+        name: item.name,
+        unit: item.unit,
+        stockQuantity: item.stockQuantity,
+        lowStockThreshold: item.lowStockThreshold,
+        price: lastPrice, // Add the price/cost!
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt
+      };
+    });
+
+    res.json(formatted);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -52,6 +87,28 @@ router.post('/raw-materials', auth(['ADMIN', 'MANAGER']), async (req, res) => {
   }
 
   try {
+    const existing = await prisma.rawMaterial.findUnique({
+      where: { name }
+    });
+
+    if (existing) {
+      if (existing.is_active) {
+        return res.status(400).json({ error: 'Raw material with this name already exists' });
+      } else {
+        // Reactivate soft-deleted raw material
+        const updated = await prisma.rawMaterial.update({
+          where: { id: existing.id },
+          data: {
+            is_active: true,
+            unit,
+            stockQuantity: parseFloat(stockQuantity) || 0,
+            lowStockThreshold: parseFloat(lowStockThreshold) || 0
+          }
+        });
+        return res.json(updated);
+      }
+    }
+
     const item = await prisma.rawMaterial.create({
       data: {
         name,
@@ -91,10 +148,24 @@ router.put('/raw-materials/:id', auth(['ADMIN', 'MANAGER']), async (req, res) =>
 router.delete('/raw-materials/:id', auth(['ADMIN', 'MANAGER']), async (req, res) => {
   const { id } = req.params;
   try {
-    await prisma.rawMaterial.delete({
-      where: { id }
-    });
-    res.json({ message: 'Raw material deleted successfully' });
+    try {
+      // Try Hard Delete first
+      await prisma.rawMaterial.delete({
+        where: { id }
+      });
+      res.json({ message: 'Raw material deleted successfully from system.' });
+    } catch (dbError) {
+      // If foreign key constraint violation (P2003), archive instead
+      if (dbError.code === 'P2003') {
+        await prisma.rawMaterial.update({
+          where: { id },
+          data: { is_active: false }
+        });
+        res.json({ message: 'Raw material archived (set to inactive) instead of deleted, because it has transaction history.' });
+      } else {
+        throw dbError;
+      }
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

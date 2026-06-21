@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../config/prisma');
 const auth = require('../middleware/auth');
+const { getNextInvoiceNo } = require('../utils/invoiceUtil');
 
 // Get all tables (with section and active running order, if occupied)
 router.get('/', auth(['ADMIN', 'MANAGER', 'CASHIER', 'WAITER', 'KITCHEN']), async (req, res) => {
@@ -361,22 +362,7 @@ router.post('/split', auth(['ADMIN', 'MANAGER', 'CASHIER']), async (req, res) =>
       }
 
       // Generate invoice number for the split order
-      const dbUrl = process.env.DATABASE_URL || '';
-      const isPostgres = dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://');
-      
-      const rawMax = isPostgres
-        ? await tx.$queryRaw`
-            SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
-            FROM "Order" 
-            WHERE "invoiceNo" ~ '^[0-9]+$' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
-          `
-        : await tx.$queryRaw`
-            SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
-            FROM "Order" 
-            WHERE "invoiceNo" NOT GLOB '*[^0-9]*' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
-          `;
-      const maxNum = Number(rawMax[0]?.maxNum) || 99;
-      const invoiceNo = (maxNum + 1).toString();
+      const invoiceNo = await getNextInvoiceNo(tx);
 
       // Create new order
       const newOrder = await tx.order.create({

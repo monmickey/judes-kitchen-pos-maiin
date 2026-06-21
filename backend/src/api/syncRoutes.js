@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../config/prisma');
 const auth = require('../middleware/auth');
+const { getNextInvoiceNo } = require('../utils/invoiceUtil');
 
 // Bulk sync endpoints
 router.post('/orders', auth(['ADMIN', 'MANAGER', 'CASHIER']), async (req, res) => {
@@ -28,39 +29,12 @@ router.post('/orders', auth(['ADMIN', 'MANAGER', 'CASHIER']), async (req, res) =
 
         // 1. Determine unique invoice number (Trust client first, then safe server fallback)
         let invoiceNo = orderData.invoiceNo;
-        const dbUrl = process.env.DATABASE_URL || '';
-        const isPostgres = dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://');
-
         if (!invoiceNo || invoiceNo === 'undefined' || invoiceNo === 'null') {
-          const rawMax = isPostgres
-            ? await tx.$queryRaw`
-                SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
-                FROM "Order" 
-                WHERE "invoiceNo" ~ '^[0-9]+$' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
-              `
-            : await tx.$queryRaw`
-                SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
-                FROM "Order" 
-                WHERE "invoiceNo" NOT GLOB '*[^0-9]*' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
-              `;
-          const maxNum = Number(rawMax[0]?.maxNum) || 99;
-          invoiceNo = (maxNum + 1).toString();
+          invoiceNo = await getNextInvoiceNo(tx);
         } else {
           const existingNum = await tx.order.findUnique({ where: { invoiceNo: String(invoiceNo) } });
           if (existingNum) {
-            const rawMax = isPostgres
-              ? await tx.$queryRaw`
-                  SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
-                  FROM "Order" 
-                  WHERE "invoiceNo" ~ '^[0-9]+$' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
-                `
-              : await tx.$queryRaw`
-                  SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
-                  FROM "Order" 
-                  WHERE "invoiceNo" NOT GLOB '*[^0-9]*' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
-                `;
-            const maxNum = Number(rawMax[0]?.maxNum) || 99;
-            invoiceNo = (maxNum + 1).toString();
+            invoiceNo = await getNextInvoiceNo(tx);
           }
         }
 

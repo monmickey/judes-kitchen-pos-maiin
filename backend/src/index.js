@@ -217,6 +217,17 @@ app.use('/api/tables', require('./api/tableRoutes'));
 app.use('/api/kots', require('./api/kotRoutes'));
 app.use('/api/shifts', require('./api/shiftRoutes'));
 app.use('/api/restaurant-settings', require('./api/settingsRoutes'));
+app.use('/api/procurements', require('./api/procurementRoutes'));
+app.use('/api/production', require('./api/productionRoutes'));
+
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: "Jude's Kitchen POS Backend API is running successfully. Access the frontend app at port 3000.",
+    health: '/health',
+    apiHealth: '/api/health'
+  });
+});
 
 // Health Checks
 app.get('/health', (req, res) => {

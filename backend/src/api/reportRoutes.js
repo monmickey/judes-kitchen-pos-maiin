@@ -83,7 +83,11 @@ router.get('/summary', async (req, res) => {
 
     // Top Selling Items today/all-time
     const orderItems = await prisma.orderItem.findMany({
-      take: 100,
+      where: {
+        order: {
+          createdAt: dateRange
+        }
+      },
       include: { product: true }
     });
 
@@ -117,6 +121,11 @@ router.get('/summary', async (req, res) => {
 
     // Distribution (Category Sales)
     const categorySales = await prisma.orderItem.findMany({
+      where: {
+        order: {
+          createdAt: dateRange
+        }
+      },
       include: { product: { include: { category: true } } }
     });
 

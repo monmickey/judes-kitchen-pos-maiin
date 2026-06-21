@@ -4,18 +4,32 @@ const prisma = require('../config/prisma');
 const auth = require('../middleware/auth');
 const whatsappUtil = require('../utils/whatsappUtil');
 const pdfUtil = require('../utils/pdfUtil');
+const { getNextInvoiceNo } = require('../utils/invoiceUtil');
 
 // Helper to get next daily sequential bill number (resets at 24:00 IST)
 async function getNextBillNo(tx) {
-  const offset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
-  const istNow = new Date(new Date().getTime() + offset);
-  const istStartOfDay = new Date(
-    istNow.getUTCFullYear(),
-    istNow.getUTCMonth(),
-    istNow.getUTCDate(),
+  // Use a fixed timezone offset representing the outlet's physical timezone.
+  // Default to -330 (IST, UTC+5:30) but allow override via environment variable.
+  const timezoneOffset = process.env.TIMEZONE_OFFSET !== undefined 
+    ? parseInt(process.env.TIMEZONE_OFFSET) 
+    : -330; 
+  
+  const offsetMs = -timezoneOffset * 60 * 1000; // e.g. 5.5 * 60 * 60 * 1000 = 19800000 ms for IST
+  
+  const nowMs = Date.now();
+  const localTimeMs = nowMs + offsetMs;
+  const localDate = new Date(localTimeMs);
+  
+  // Get midnight of the local date in UTC representation
+  const localMidnightUtcMs = Date.UTC(
+    localDate.getUTCFullYear(),
+    localDate.getUTCMonth(),
+    localDate.getUTCDate(),
     0, 0, 0, 0
   );
-  const utcStartOfDay = new Date(istStartOfDay.getTime() - offset);
+  
+  // Convert back to UTC representation to get start of day in database query
+  const utcStartOfDay = new Date(localMidnightUtcMs - offsetMs);
 
   const maxBillOrder = await tx.order.findFirst({
     where: {
@@ -194,19 +208,7 @@ router.post('/', auth(['ADMIN', 'MANAGER', 'CASHIER', 'WAITER']), async (req, re
       const existingNum = await tx.order.findUnique({ where: { invoiceNo: String(clientInvoiceNo) } });
       if (!clientInvoiceNo || existingNum) {
           // If client provided no number or it's already taken, calculate next safe one
-          const rawMax = isPostgres
-            ? await tx.$queryRaw`
-                SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
-                FROM "Order" 
-                WHERE "invoiceNo" ~ '^[0-9]+$' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
-              `
-            : await tx.$queryRaw`
-                SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
-                FROM "Order" 
-                WHERE "invoiceNo" NOT GLOB '*[^0-9]*' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
-              `;
-          const maxNum = Number(rawMax[0]?.maxNum) || 99;
-          invoiceNo = (maxNum + 1).toString();
+          invoiceNo = await getNextInvoiceNo(tx);
       }
 
       // 3. Validation
@@ -1007,23 +1009,7 @@ router.post('/:id/approve', auth(['ADMIN', 'MANAGER', 'CASHIER']), async (req, r
     }
 
     // Generate a fresh sequential invoice number
-    let finalInvoiceNo;
-    const dbUrl = process.env.DATABASE_URL || '';
-    const isPostgres = dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://');
-    
-    const rawMax = isPostgres
-      ? await prisma.$queryRaw`
-          SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
-          FROM "Order" 
-          WHERE "invoiceNo" ~ '^[0-9]+$' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
-        `
-      : await prisma.$queryRaw`
-          SELECT MAX(CAST("invoiceNo" AS INTEGER)) as "maxNum" 
-          FROM "Order" 
-          WHERE "invoiceNo" NOT GLOB '*[^0-9]*' AND "invoiceNo" <> '' AND "invoiceNo" NOT LIKE '9%'
-        `;
-    const maxNum = Number(rawMax[0]?.maxNum) || 99;
-    finalInvoiceNo = String(maxNum + 1);
+    const finalInvoiceNo = await getNextInvoiceNo(prisma);
 
     // Calculate daily sequential Bill No (restarts at 24:00 IST) outside transaction to prevent timeouts
     const billNo = await getNextBillNo(prisma);
