@@ -24,3 +24,5 @@ backend/backups/
 !*.json.example
 google-credentials.json
 *.sql
+
+.vercel

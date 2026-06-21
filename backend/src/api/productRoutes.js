@@ -310,16 +310,45 @@ router.post('/shop-close', auth(['ADMIN', 'MANAGER']), async (req, res) => {
       }
     });
 
-    // 2. Clear stock and log the transaction
+    // 2. Clear stock, log transaction, and record expenditure
     await prisma.$transaction(async (tx) => {
-      // Create inventory log entries for tracking
+      let totalWastedCost = 0;
+      const details = [];
+
+      // Create inventory log entries and calculate wasted stock cost
       for (const p of productsWithStock) {
+        const itemCost = (p.purchasePrice || 0) * p.stockQuantity;
+        totalWastedCost += itemCost;
+        details.push(`${p.name} (${p.stockQuantity} ${p.unit} @ ₹${(p.purchasePrice || 0).toFixed(2)})`);
+
         await tx.inventoryLog.create({
           data: {
             productId: p.id,
             type: 'OUT',
             quantity: p.stockQuantity,
             reason: 'Shop Close'
+          }
+        });
+      }
+
+      // Log the total cost as an expense if it's greater than 0
+      if (totalWastedCost > 0) {
+        // Ensure "Wasted Stock" category exists
+        let category = await tx.expenseCategory.findUnique({
+          where: { name: 'Wasted Stock' }
+        });
+        if (!category) {
+          category = await tx.expenseCategory.create({
+            data: { name: 'Wasted Stock' }
+          });
+        }
+
+        // Create the expense record
+        await tx.expense.create({
+          data: {
+            type: 'Wasted Stock',
+            amount: totalWastedCost,
+            description: `Shop Close Stock Clearance: ${details.join(', ')}`
           }
         });
       }
@@ -341,7 +370,7 @@ router.post('/shop-close', auth(['ADMIN', 'MANAGER']), async (req, res) => {
       io.emit('INVENTORY_UPDATE', { shopClosed: true });
     }
 
-    res.json({ message: 'Shop closed successfully. Finished product stocks have been cleared.' });
+    res.json({ message: 'Shop closed successfully. Finished product stocks have been cleared and logged as an expense.' });
   } catch (error) {
     console.error('Error during Shop Close:', error);
     res.status(500).json({ error: error.message });
